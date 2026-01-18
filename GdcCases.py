@@ -1,6 +1,8 @@
 import requests
 import json
 from Bio import Entrez, SeqIO
+from pccompound import pccompound
+import time
 
 
 class GdcCases:
@@ -102,10 +104,13 @@ class GdcCases:
         patients = []
         _hash = []
 
+        # Loop in cases
         for hit in self.raw_data["data"]["hits"]:
             patient_id = hit.get("submitter_id")
 
             has_valid_drug = False
+
+            # Loop in case's treatments
             for diagnosis in hit.get("diagnoses", []):
                 for treatment in diagnosis.get("treatments", []):
                     agent = treatment.get("therapeutic_agents")
@@ -120,33 +125,40 @@ class GdcCases:
                         and hit.get("demographic")
                     ):
                         has_valid_drug = True
-                        smoker = hit.get("exposures")[0].get("tobacco_smoking_status")
+                        tobacco_smoking_status = hit.get("exposures")[0].get(
+                            "tobacco_smoking_status"
+                        )
                         _hash.append(
                             {
                                 "submitter_id": hit["submitter_id"],
                                 "treatment_type": treatment.get("treatment_type"),
-                                "therapeutic_agents": treatment.get(
-                                    "therapeutic_agents"
-                                ),
-                                "tobacco_smoking_status": smoker,
+                                "therapeutic_agents": agent,
+                                "tobacco_smoking_status": tobacco_smoking_status,
                                 "is_smoker": (
                                     "smoker"
-                                    if smoker == "Current Smoker"
+                                    if tobacco_smoking_status == "Current Smoker"
                                     else (
                                         "nonsmoker"
-                                        if smoker == "Lifelong Non-Smoker"
+                                        if tobacco_smoking_status
+                                        == "Lifelong Non-Smoker"
                                         else "reformed smoker"
                                     )
                                 ),
                                 "days_to_death": hit.get("demographic").get(
                                     "days_to_death"
                                 ),
-                                "cid": "",
-                                "mesh_term": "",
                             }
                         )
 
             if has_valid_drug:
                 patients.append(hit)
         self.hash = _hash
-        return patients
+        self.patients = patients
+
+    def pretty(self):
+        print(json.dumps(self.hash, indent=4, sort_keys=True))
+
+    def get_mesh_list(self):
+        for i in self.hash:
+            meshlist = pccompound(i["therapeutic_agents"])
+            print(meshlist)
