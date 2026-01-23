@@ -15,12 +15,12 @@ def pccompound(query):
 
     for i in result.get("IdList", []):
         meshlist["CID"] = i
-        meshlist["mesh_list"] = get_mesh_term_directly(query)
+        meshlist["mesh_list"] = get_mesh_term(query)
 
     return meshlist
 
 
-def get_mesh_term_directly(chemical_name):
+def get_mesh_term(chemical_name):
     # Step 1: Search the MeSH database for the chemical name
     with Entrez.esearch(db="mesh", term=chemical_name) as search_handle:
         search_results = Entrez.read(search_handle)

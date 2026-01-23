@@ -3,6 +3,7 @@ import json
 from Bio import Entrez, SeqIO
 from pccompound import pccompound
 import time
+from Database import Database
 
 
 class GdcCases:
@@ -10,13 +11,20 @@ class GdcCases:
     GDC_URL = "https://api.gdc.cancer.gov/cases"
 
     def __init__(self):
+        self.db = Database("./db.sqlite")
         self.raw_data = None
         self.hash = None
+        self.query = ""
+
+        self.db.execute(
+            """CREATE TABLE IF NOT EXISTS drugs ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, CID TEXT, mesh_list TEXT )"""
+        )
 
     def fetch(self, query):
         """
         Fetches clinical data for a specific project (e.g., 'LUAD').
         """
+        self.query = query
         fields = [
             "submitter_id",
             "case_id",
@@ -34,7 +42,7 @@ class GdcCases:
                     "op": "in",
                     "content": {
                         "field": "project.project_id",
-                        "value": [query],
+                        "value": [self.query],
                     },
                 },
                 {
@@ -97,7 +105,7 @@ class GdcCases:
             print(f"Error fetching data: {e}")
             self.raw_data = None
 
-    def get_cleaned_data(self):
+    def get_data(self):
         if not self.raw_data or "data" not in self.raw_data:
             return []
 
@@ -107,58 +115,58 @@ class GdcCases:
         # Loop in cases
         for hit in self.raw_data["data"]["hits"]:
             patient_id = hit.get("submitter_id")
-
             has_valid_drug = False
 
-            # Loop in case's treatments
             for diagnosis in hit.get("diagnoses", []):
                 for treatment in diagnosis.get("treatments", []):
                     agent = treatment.get("therapeutic_agents")
+                    demographic = hit.get("demographic")
 
                     if (
                         agent
-                        and agent.lower()
-                        not in [
-                            "unknown",
-                            "none",
-                        ]
-                        and hit.get("demographic")
+                        and agent.lower() not in ["unknown", "none", "clinical trial"]
+                        and demographic
                     ):
                         has_valid_drug = True
-                        tobacco_smoking_status = hit.get("exposures")[0].get(
-                            "tobacco_smoking_status"
-                        )
                         _hash.append(
                             {
                                 "submitter_id": hit["submitter_id"],
                                 "treatment_type": treatment.get("treatment_type"),
                                 "therapeutic_agents": agent,
-                                "tobacco_smoking_status": tobacco_smoking_status,
-                                "is_smoker": (
-                                    "smoker"
-                                    if tobacco_smoking_status == "Current Smoker"
-                                    else (
-                                        "nonsmoker"
-                                        if tobacco_smoking_status
-                                        == "Lifelong Non-Smoker"
-                                        else "reformed smoker"
-                                    )
-                                ),
-                                "days_to_death": hit.get("demographic").get(
-                                    "days_to_death"
-                                ),
+                                "is_smoker": self.is_smoker(hit),
+                                "days_to_death": demographic.get("days_to_death"),
                             }
                         )
-
             if has_valid_drug:
                 patients.append(hit)
         self.hash = _hash
         self.patients = patients
 
-    def pretty(self):
-        print(json.dumps(self.hash, indent=4, sort_keys=True))
+    def is_smoker(self, hit):
+        status = hit.get("exposures")[0].get("tobacco_smoking_status")
+        return (
+            "smoker"
+            if status == "Current Smoker"
+            else ("nonsmoker" if status == "Lifelong Non-Smoker" else "reformed smoker")
+        )
 
     def get_mesh_list(self):
-        for i in self.hash:
-            meshlist = pccompound(i["therapeutic_agents"])
-            print(meshlist)
+        for i in range(len(self.hash)):
+            hit = self.hash[i]
+
+            agent = hit.get("therapeutic_agents")
+            mesh_list = self.db.fetchone("SELECT * FROM drugs WHERE title=?", (agent,))
+
+            if mesh_list == None:
+                time.sleep(1)
+                mesh_list = pccompound(agent)
+                self.db.execute(
+                    "INSERT INTO drugs (title, CID, mesh_list) VALUES (?, ?, ?)",
+                    (
+                        agent,
+                        mesh_list.get("CID"),
+                        json.dumps(mesh_list.get("mesh_list")),
+                    ),
+                )
+            self.hash[i]["CID"] = mesh_list.get("CID")
+            self.hash[i]["mesh_list"] = mesh_list.get("mesh_list")
