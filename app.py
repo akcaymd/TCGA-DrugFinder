@@ -1,10 +1,10 @@
 from GdcCases import GdcCases
+import pandas as pd
 
 
 data = GdcCases()
 data.fetch("TCGA-LUAD")
 data.get_data()
-data.get_mesh_list()
-
-print(data.hash)
-print(len(data.hash))
+hash_list = data.get_mesh_list()
+df = pd.DataFrame(hash_list)
+df_exploded = df.explode("mesh_list")

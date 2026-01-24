@@ -11,9 +11,9 @@ class GdcCases:
     GDC_URL = "https://api.gdc.cancer.gov/cases"
 
     def __init__(self):
-        self.db = Database("./db.sqlite")
+        self.db = Database("./drugs.db")
         self.raw_data = None
-        self.hash = None
+        self.cases = None
         self.query = ""
 
         self.db.execute(
@@ -109,13 +109,11 @@ class GdcCases:
         if not self.raw_data or "data" not in self.raw_data:
             return []
 
-        patients = []
-        _hash = []
+        cases = []
 
         # Loop in cases
         for hit in self.raw_data["data"]["hits"]:
             patient_id = hit.get("submitter_id")
-            has_valid_drug = False
 
             for diagnosis in hit.get("diagnoses", []):
                 for treatment in diagnosis.get("treatments", []):
@@ -127,8 +125,7 @@ class GdcCases:
                         and agent.lower() not in ["unknown", "none", "clinical trial"]
                         and demographic
                     ):
-                        has_valid_drug = True
-                        _hash.append(
+                        cases.append(
                             {
                                 "submitter_id": hit["submitter_id"],
                                 "treatment_type": treatment.get("treatment_type"),
@@ -137,10 +134,8 @@ class GdcCases:
                                 "days_to_death": demographic.get("days_to_death"),
                             }
                         )
-            if has_valid_drug:
-                patients.append(hit)
-        self.hash = _hash
-        self.patients = patients
+
+        self.cases = cases
 
     def is_smoker(self, hit):
         status = hit.get("exposures")[0].get("tobacco_smoking_status")
@@ -151,22 +146,22 @@ class GdcCases:
         )
 
     def get_mesh_list(self):
-        for i in range(len(self.hash)):
-            hit = self.hash[i]
+        hash_list = []
+        for i in range(5):
+            hit = self.cases[i]
 
             agent = hit.get("therapeutic_agents")
-            mesh_list = self.db.fetchone("SELECT * FROM drugs WHERE title=?", (agent,))
 
-            if mesh_list == None:
-                time.sleep(1)
-                mesh_list = pccompound(agent)
-                self.db.execute(
-                    "INSERT INTO drugs (title, CID, mesh_list) VALUES (?, ?, ?)",
-                    (
-                        agent,
-                        mesh_list.get("CID"),
-                        json.dumps(mesh_list.get("mesh_list")),
-                    ),
+            time.sleep(1)
+            mesh_list = pccompound(agent)
+            for mesh in mesh_list:
+                hash_list.append(
+                    {
+                        **hit,
+                        **{
+                            "CID": mesh.get("CID"),
+                            "mesh_list": mesh.get("mesh_list"),
+                        },
+                    }
                 )
-            self.hash[i]["CID"] = mesh_list.get("CID")
-            self.hash[i]["mesh_list"] = mesh_list.get("mesh_list")
+        return hash_list
