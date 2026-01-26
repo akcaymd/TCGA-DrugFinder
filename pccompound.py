@@ -25,24 +25,6 @@ def pccompound(drug_title):
     return meshlist
 
 
-"""
-def get_mesh_term(chemical_name):
-    # Step 1: Search the MeSH database for the chemical name
-    search_handle = Entrez.esearch(db="mesh", term=f"{chemical_name}[MeSH Terms]")
-    search_results = Entrez.read(search_handle)
-    ids = search_results.get("IdList", [])
-
-    if not ids:
-        return None
-
-    # Step 2: Retrieve the specific MeSH descriptor names
-    summary_handle = Entrez.esummary(db="mesh", id=",".join(ids))
-    summaries = Entrez.read(summary_handle)
-
-    return [s["DS_MeshTerms"] for s in summaries][0]
-"""
-
-
 def get_mesh_ids(ids):
     handle = Entrez.elink(dbfrom="pccompound", db="mesh", id=ids)
     records = Entrez.read(handle)

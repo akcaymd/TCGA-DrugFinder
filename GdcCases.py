@@ -3,7 +3,6 @@ import json
 from Bio import Entrez, SeqIO
 from pccompound import pccompound
 import time
-from Database import Database
 
 
 class GdcCases:
@@ -11,14 +10,9 @@ class GdcCases:
     GDC_URL = "https://api.gdc.cancer.gov/cases"
 
     def __init__(self):
-        self.db = Database("./drugs.db")
         self.raw_data = None
         self.cases = None
         self.query = ""
-
-        self.db.execute(
-            """CREATE TABLE IF NOT EXISTS drugs ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, CID TEXT, mesh_list TEXT )"""
-        )
 
     def fetch(self, query):
         """
@@ -147,12 +141,13 @@ class GdcCases:
 
     def get_mesh_list(self):
         hash_list = []
-        for i in range(5):
+        # for i in range(len(self.cases)):
+        for i in range(10):
             hit = self.cases[i]
 
             agent = hit.get("therapeutic_agents")
 
-            time.sleep(1)
+            time.sleep(3)
             mesh_list = pccompound(agent)
             for mesh in mesh_list:
                 hash_list.append(
