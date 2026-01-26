@@ -147,7 +147,7 @@ class GdcCases:
 
             agent = hit.get("therapeutic_agents")
 
-            time.sleep(3)
+            time.sleep(1)
             mesh_list = pccompound(agent)
             for mesh in mesh_list:
                 hash_list.append(

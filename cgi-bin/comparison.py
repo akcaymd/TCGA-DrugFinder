@@ -1,5 +1,6 @@
 from pccompound import pccompound
 import statistics
+import pandas as pd
 
 
 def summarize_mesh_terms(mesh_terms, mesh_summary):
@@ -46,11 +47,12 @@ def summarize_mesh_terms(mesh_terms, mesh_summary):
     }
 
 
-def compare_compounds(compound1, compound2, mesh_summary):
+def compare_compounds(compound1, compound2, mesh_summary) -> pd.DataFrame:
     """
-    Prints side-by-side TCGA statistics for two compounds.
+    Returns side-by-side compound comparison as pandas DataFrame
     """
 
+    # ── get mesh terms from PubChem
     c1_mesh = pccompound(compound1)
     c2_mesh = pccompound(compound2)
 
@@ -63,36 +65,24 @@ def compare_compounds(compound1, compound2, mesh_summary):
     for m in c2_mesh:
         mesh2.update(m["mesh_list"])
 
+    # ── summarize
     stat1 = summarize_mesh_terms(mesh1, mesh_summary)
     stat2 = summarize_mesh_terms(mesh2, mesh_summary)
 
-    print("\n" + "=" * 70)
-    print("                SIDE BY SIDE COMPOUND COMPARISON")
-    print("=" * 70)
+    # ── build dataframe
+    metrics = sorted(set(stat1.keys()) | set(stat2.keys()))
 
-    header = f"{'Metric':30s}{compound1:20s}{compound2:20s}"
-    print(header)
-    print("-" * 70)
+    data = []
 
-    def row(label, v1, v2):
-        print(f"{label:30s}{str(v1):20s}{str(v2):20s}")
-
-    row("MeSH terms", stat1["mesh_count"], stat2["mesh_count"])
-    row("Patients", stat1["patients"], stat2["patients"])
-    row("Smokers", stat1["smokers"], stat2["smokers"])
-    row("Non-smokers", stat1["nonsmokers"], stat2["nonsmokers"])
-    row("Mean survival (days)", stat1["mean_survival"], stat2["mean_survival"])
-    row("Median survival (days)", stat1["median_survival"], stat2["median_survival"])
-
-    print("-" * 70)
-
-    all_therapies = set(stat1["therapy"]) | set(stat2["therapy"])
-
-    for therapy in sorted(all_therapies):
-        row(
-            therapy,
-            stat1["therapy"].get(therapy, 0),
-            stat2["therapy"].get(therapy, 0),
+    for metric in metrics:
+        data.append(
+            {
+                "Metric": metric,
+                compound1: stat1.get(metric, 0),
+                compound2: stat2.get(metric, 0),
+            }
         )
 
-    print("=" * 70)
+    df = pd.DataFrame(data).set_index("Metric")
+
+    return df
